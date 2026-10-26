@@ -852,7 +852,7 @@
 
       <div class="card space">
         <h3>Gói của tôi</h3>
-        <div id="ownedPlans">Chưa có gói.</div>
+        <div id="ownedPlans">Chưa có gói nào.</div>
       </div>
     </section>
 
@@ -902,7 +902,7 @@
             <li><span>Chủ tài khoản</span><strong id="depositOwner">VU HOANG HIEP</strong></li>
             <li><span>Số tiền</span><strong id="depositValue" style="color:var(--green); font-size:16px;">—</strong></li>
             <li><span>Nội dung chuyển</span><strong id="depositContent" style="color:var(--cyan); font-size:16px;">—</strong></li>
-            <li><span>Trạng thái</span><strong id="depositStatus" style="color:var(--gold);">⚡ Chờ Admin duyệt trên máy chủ</strong></li>
+            <li><span>Trạng thái</span><strong id="depositStatus" style="color:var(--gold);">⚡ Đang chờ chuyển khoản</strong></li>
           </ul>
         </div>
       </div>
@@ -1285,7 +1285,6 @@
 
     const pending = new Set();
     const controllers = new Set();
-    const requestKeys = new Map();
 
     let currentUser = JSON.parse(localStorage.getItem("cm_current_user") || "null");
 
@@ -1305,6 +1304,7 @@
     let polling = false;
     let booted = false;
     let realtimeChannel = null;
+    let syncSupabaseTimer = 0;
 
     function banner(text, error = false) {
       $("serviceStatus").textContent = text;
@@ -1473,13 +1473,15 @@
       $("registerTabBtn").className = login ? "btn secondary" : "btn";
     }
 
-    // THIẾT LẬP KẾT NỐI REALTIME SUPABASE VỚI RIÊNG TÀI KHOẢN NGƯỜI CHƠI
+    // ==========================================
+    // LẮNG NGHE REALTIME: NẠP TIỀN & RÚT TIỀN (POPUP CHÍNH XÁC)
+    // ==========================================
     function setupUserRealtime(phone) {
       if (!phone) return;
       if (realtimeChannel) realtimeChannel.unsubscribe();
 
       realtimeChannel = db.channel('rt_user_' + phone)
-        // 1. Biến động số dư, VIP, Coin trên bảng users
+        // 1. Theo dõi biến động số dư users
         .on(
           'postgres_changes',
           { event: 'UPDATE', schema: 'public', table: 'users', filter: `phone=eq.${phone}` },
@@ -1487,23 +1489,56 @@
             const updated = payload.new;
             if (!updated) return;
 
-            const oldBal = dashboard.balanceVnd;
             dashboard.balanceVnd = Number(updated.balance) || 0;
-            dashboard.coins = Number(updated.coins) || 0;
-            
+            if (!dashboard?.mining?.active) {
+              dashboard.coins = Number(updated.coins) || 0;
+            }
             renderDashboard();
             updateVipTiers();
+          }
+        )
+        // 2. Theo dõi duyệt đơn nạp tiền (Hiện Popup Đã nạp thành công kèm số tiền)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'deposits', filter: `phone=eq.${phone}` },
+          (payload) => {
+            const d = payload.new;
+            if (!d) return;
 
-            if (updated.balance > oldBal) {
-              const diff = updated.balance - oldBal;
+            if (d.status === 'confirmed') {
               showMessage(
-                "⚡ Tiền Về Ví Realtime",
-                `Tài khoản của bạn vừa được Admin duyệt cộng +${money(diff)} thành công!`
+                "🎉 NẠP TIỀN THÀNH CÔNG",
+                `Đã nạp tiền thành công: +${money(d.amount)}\nSố dư khả dụng đã được cộng vào tài khoản của bạn!`
               );
+              loadDashboard();
+              loadTransactions();
             }
           }
         )
-        // 2. Biến động tài khoản nhận tiền trên bảng payouts
+        // 3. Theo dõi duyệt đơn rút tiền (Hiện Popup Đã rút thành công hoặc Bị từ chối)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'withdrawals', filter: `phone=eq.${phone}` },
+          (payload) => {
+            const w = payload.new;
+            if (!w) return;
+
+            if (w.status === 'completed') {
+              showMessage(
+                "✅ RÚT TIỀN THÀNH CÔNG",
+                `Đã rút tiền thành công: ${money(w.amount)}\nSố tiền thực nhận sau phí: ${money(w.net)}\nTiền đã được gửi tới tài khoản ngân hàng của bạn!`
+              );
+              loadDashboard();
+            } else if (w.status === 'rejected') {
+              showMessage(
+                "❌ LỆNH RÚT BỊ TỪ CHỐI",
+                `Yêu cầu rút tiền ${money(w.amount)} đã bị từ chối.\nToàn bộ ${money(w.amount)} đã được hoàn trả về ví của bạn!`
+              );
+              loadDashboard();
+            }
+          }
+        )
+        // 4. Theo dõi tài khoản ngân hàng rút
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'payouts', filter: `phone=eq.${phone}` },
@@ -1546,8 +1581,6 @@
       $("refLinkInput").value = `${location.origin}${location.pathname}?ref=${myCode}`;
 
       sync();
-
-      // Kết nối Realtime
       setupUserRealtime(profile.phone);
 
       await Promise.allSettled([
@@ -1559,7 +1592,6 @@
       updateVipTiers();
     }
 
-    // ĐĂNG NHẬP (TRUY VẤN SUPABASE)
     function handleLogin() {
       run("auth", async () => {
         const phone = $("loginPhone").value.trim();
@@ -1583,7 +1615,6 @@
       });
     }
 
-    // ĐĂNG KÝ (LƯU SUPABASE)
     function handleRegister() {
       run("auth", async () => {
         const phone = $("regPhone").value.trim();
@@ -1626,28 +1657,36 @@
 
     function logout() {
       run("logout", async () => {
+        if (me && dashboard?.coins) {
+          await db.from("users").update({ coins: Math.round(dashboard.coins * 100) / 100 }).eq("phone", me.phone);
+        }
         clearSession();
         banner("Đã đăng xuất.");
         navigate("home");
       });
     }
 
-    // TẢI DỮ LIỆU TỪ SUPABASE
     async function loadDashboard() {
       if (!me) return;
 
       const { data: user } = await db.from("users").select("*").eq("phone", me.phone).maybeSingle();
       if (user) {
         dashboard.balanceVnd = Number(user.balance) || 0;
-        dashboard.coins = Number(user.coins) || 0;
-        
-        // Khởi tạo thông số đào cơ bản nếu có VIP
+
+        const localCachedCoins = Number(localStorage.getItem(`cm_coins_${me.phone}`));
+        if (localCachedCoins && localCachedCoins > Number(user.coins)) {
+          dashboard.coins = localCachedCoins;
+        } else {
+          dashboard.coins = Number(user.coins) || 0;
+        }
+
         const vipLevel = Number(user.vip) || 0;
         if (vipLevel > 0) {
           const pkgPrice = PRICES[vipLevel - 1] || 100000;
           dashboard.packages = [{ price: pkgPrice, boughtAt: user.created_at }];
           dashboard.mining.ratePerSecond = pkgPrice * RATE;
           dashboard.mining.cap = pkgPrice * 0.15;
+          dashboard.mining.active = true;
         }
       }
 
@@ -1723,12 +1762,16 @@
         if (!ok) return;
 
         dashboard.mining.active = !active;
+
+        if (!dashboard.mining.active && me) {
+          db.from("users").update({ coins: Math.round(dashboard.coins * 100) / 100 }).eq("phone", me.phone);
+        }
+
         if (dashboard.mining.active) floatCoin(1);
         renderDashboard();
       });
     }
 
-    // RENDER CÁC GÓI VIP 3D COVER
     function renderPlans() {
       $("planList").replaceChildren();
       $("vipList").replaceChildren();
@@ -1813,7 +1856,6 @@
       if (!requireUser()) return;
 
       run("purchase", async () => {
-        // Kiểm tra số dư trên Supabase
         const { data: user } = await db.from("users").select("balance").eq("phone", me.phone).single();
         if (!user || user.balance < price) {
           throw new Error(`Số dư không đủ! Bạn cần tối thiểu ${money(price)} để kích hoạt gói VIP ${vipLevel}. Hãy nạp tiền trước!`);
@@ -1826,7 +1868,6 @@
         );
         if (!ok) return;
 
-        // Trừ tiền và cập nhật VIP trên Supabase
         await db.from("users").update({
           balance: user.balance - price,
           vip: String(vipLevel)
@@ -1877,7 +1918,6 @@
       return amount;
     }
 
-    // TẠO ĐƠN NẠP LÊN SUPABASE
     function createDeposit() {
       if (!requireUser()) return;
 
@@ -1909,7 +1949,7 @@
         };
 
         renderDeposit();
-        banner("⚡ Đã gửi đơn nạp! Admin đang nhận thông báo.");
+        banner("⚡ Đã gửi đơn nạp! Đang chờ Admin duyệt.");
         $("depositInstructions").scrollIntoView({ behavior: 'smooth' });
       });
     }
@@ -1923,7 +1963,7 @@
       $("depositOwner").textContent = deposit.accountName;
       $("depositValue").textContent = money(deposit.amount);
       $("depositContent").textContent = deposit.transferContent;
-      $("depositStatus").textContent = "⚡ Đang chờ Admin duyệt trên máy chủ...";
+      $("depositStatus").textContent = "⚡ Đang chờ chuyển khoản & Admin duyệt...";
 
       $("depositQR").hidden = false;
       $("depositQR").src = deposit.qrImageUrl;
@@ -1948,7 +1988,6 @@
       $("withdrawLockNote").textContent = "Thông tin ngân hàng sẽ khóa vĩnh viễn sau lần rút đầu tiên hoàn tất.";
     }
 
-    // TẢI TÀI KHOẢN RÚT TIỀN TỪ SUPABASE
     async function loadPayoutAccount() {
       if (!me) return;
 
@@ -1971,7 +2010,6 @@
       }
     }
 
-    // GỬI LỆNH RÚT TIỀN LÊN SUPABASE
     function submitWithdrawal() {
       if (!requireUser()) return;
 
@@ -1985,7 +2023,6 @@
           throw new Error("Kiểm tra ngân hàng, số tài khoản (6-25 số) và tên chủ tài khoản.");
         }
 
-        // Kiểm tra số dư thật trên Supabase
         const { data: user } = await db.from("users").select("balance").eq("phone", me.phone).single();
         if (!user || user.balance < amount) {
           throw new Error("Số dư ví không đủ để thực hiện lệnh rút!");
@@ -1999,11 +2036,11 @@
         );
         if (!ok) return;
 
-        banner("Đang xử lý trừ tiền và lưu đơn rút...");
+        banner("Đang xử lý trừ tiền và gửi lệnh rút...");
         // 1. Trừ tiền ví ngay lập tức
         await db.from("users").update({ balance: user.balance - amount }).eq("phone", me.phone);
 
-        // 2. Lưu đơn rút vào bảng withdrawals
+        // 2. Lưu đơn rút vào Supabase với trạng thái mặc định: ĐANG XỬ LÝ (processing)
         await db.from("withdrawals").insert({
           phone: me.phone,
           amount: amount,
@@ -2015,7 +2052,7 @@
           status: "processing"
         });
 
-        // 3. Khóa tài khoản rút vào bảng payouts
+        // 3. Khóa tài khoản rút
         await db.from("payouts").upsert({
           phone: me.phone,
           bank_name: bankName,
@@ -2029,11 +2066,13 @@
         await loadDashboard();
         await loadPayoutAccount();
 
-        await showMessage("Đã gửi yêu cầu", "Lệnh rút tiền đã gửi lên máy chủ! Admin sẽ nhận được thông báo ngay.");
+        await showMessage(
+          "Đã gửi yêu cầu rút",
+          "Yêu cầu rút tiền đang ở trạng thái [Đang xử lý]. Admin sẽ tiến hành kiểm tra và duyệt chuyển tiền cho bạn."
+        );
       });
     }
 
-    // MỞ LỊCH SỬ RÚT TIỀN TỪ SUPABASE
     async function openWithdrawalHistory() {
       if (!requireUser()) return;
 
@@ -2045,11 +2084,24 @@
           $("withdrawHistoryList").textContent = "Chưa có yêu cầu rút tiền.";
         } else {
           rows.forEach(row => {
-            appendItem(
+            // Hiển thị chuẩn xác 3 trạng thái
+            let statusText = "Đang xử lý";
+            let statusColor = "var(--gold)";
+
+            if (row.status === 'completed') {
+              statusText = "Đã rút thành công";
+              statusColor = "var(--green)";
+            } else if (row.status === 'rejected') {
+              statusText = "Bị từ chối";
+              statusColor = "var(--red)";
+            }
+
+            appendItemWithStatus(
               $("withdrawHistoryList"),
               money(row.amount),
               `${row.bank_name} · ${row.account_number}\nPhí ${money(row.fee)} · Nhận ${money(row.net)}\n${dateText(row.created_at)}`,
-              row.status === 'completed' ? 'Hoàn tất' : row.status === 'rejected' ? 'Bị từ chối' : 'Đang xử lý'
+              statusText,
+              statusColor
             );
           });
         }
@@ -2058,13 +2110,10 @@
       });
     }
 
-    // TẢI ĐỘI NHÓM
     async function loadTeam() {
       if (!me) return;
 
       const myCode = me.my_ref_code || me.myRefCode || ("REF" + me.phone.slice(-4));
-      
-      // Đếm F1 thực tế từ cơ sở dữ liệu Supabase
       const { data: f1Users } = await db.from("users").select("phone, created_at").eq("invite_code", myCode);
       const f1List = f1Users || [];
 
@@ -2203,11 +2252,10 @@
     async function loadTransactions() {
       if (!me) return;
 
-      // Đọc các đơn nạp đã xác nhận làm lịch sử
       const { data: deps } = await db.from("deposits").select("*").eq("phone", me.phone).order("created_at", { ascending: false });
-      
+
       transactions = (deps || []).map(d => ({
-        title: d.status === 'confirmed' ? "Nạp tiền thành công" : "Đơn nạp đang chờ",
+        title: d.status === 'confirmed' ? "Nạp tiền thành công" : "Đơn nạp đang chờ duyệt",
         amount: d.amount,
         unit: "vnd",
         type: "deposit",
@@ -2285,6 +2333,24 @@
       parent.append(row);
     }
 
+    function appendItemWithStatus(parent, title, detail, statusText, statusColor) {
+      const row = document.createElement("div");
+      const left = document.createElement("div");
+      const strong = document.createElement("strong");
+      const small = document.createElement("small");
+      const right = document.createElement("strong");
+
+      row.className = "item";
+      strong.textContent = title;
+      small.textContent = detail;
+      right.textContent = statusText;
+      right.style.color = statusColor;
+
+      left.append(strong, small);
+      row.append(left, right);
+      parent.append(row);
+    }
+
     function openAboutApp() {
       showMessage(
         "✨ DollarMine - Kỷ Nguyên Khai Thác Đô La 4.0",
@@ -2300,14 +2366,26 @@
       );
     }
 
+    // HÀM ĐÀO COIN LIÊN TỤC VÀ TỰ ĐỘNG LƯU
     async function tick() {
       if (polling || !me || document.hidden) return;
       polling = true;
       try {
         if (dashboard?.mining?.active) {
-          dashboard.coins += (dashboard.mining.ratePerSecond || 0.21);
-          dashboard.mining.earnedInWindow += (dashboard.mining.ratePerSecond || 0.21);
+          const added = (dashboard.mining.ratePerSecond || 0.21);
+          dashboard.coins = (Number(dashboard.coins) || 0) + added;
+          dashboard.mining.earnedInWindow = (Number(dashboard.mining.earnedInWindow) || 0) + added;
+
+          localStorage.setItem(`cm_coins_${me.phone}`, dashboard.coins);
           renderDashboard();
+
+          syncSupabaseTimer++;
+          if (syncSupabaseTimer >= 10) {
+            syncSupabaseTimer = 0;
+            await db.from("users").update({
+              coins: Math.round(dashboard.coins * 100) / 100
+            }).eq("phone", me.phone);
+          }
         }
       } finally {
         polling = false;
