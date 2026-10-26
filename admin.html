@@ -126,6 +126,7 @@
     .btn.success { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); color: var(--green); }
     .btn.warning { background: rgba(255, 202, 40, 0.15); border-color: rgba(255, 202, 40, 0.4); color: var(--gold); }
     .btn.secondary { background: rgba(255, 255, 255, 0.06); border-color: var(--glass-border); color: #fff; }
+    .btn.gold { background: linear-gradient(135deg, #ffd54f, #ffb300); color: #1e1300; }
     .btn:hover { transform: translateY(-2px); }
 
     input, select, textarea {
@@ -295,14 +296,35 @@
     <section id="sec-giftcode" class="card" hidden>
       <div class="grid-2">
         <div>
-          <h3 style="margin-top:0;">Tạo Giftcode Sự Kiện Mới</h3>
+          <!-- Tạo thủ công -->
+          <h3 style="margin-top:0;">Tạo Giftcode Thủ Công</h3>
           <label>Mã Code (In hoa, không dấu)</label>
           <input id="gcCode" placeholder="Ví dụ: TRIANVIP100K" style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
 
           <label>Giá trị phần thưởng (VND)</label>
           <input id="gcAmount" type="number" placeholder="Ví dụ: 50000">
 
-          <button class="btn primary" style="width:100%; margin-top:8px;" onclick="createGiftcodeInDb()">🚀 Kích Hoạt Giftcode Supabase</button>
+          <button class="btn primary" style="width:100%; margin-top:8px;" onclick="createGiftcodeInDb()">🚀 Kích Hoạt 1 Mã</button>
+
+          <!-- TẠO CODE NGẪU NHIÊN HÀNG LOẠT CHO NHIỀU NGƯỜI -->
+          <div style="margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--glass-border);">
+            <h3 style="margin-top:0; color: var(--gold);">🎲 Tạo Code Ngẫu Nhiên Hàng Loạt</h3>
+            <label>Số lượng người / Số lượng mã cần tạo</label>
+            <input id="randCount" type="number" value="10" placeholder="Ví dụ: 10">
+
+            <div class="grid-2" style="margin-bottom:0;">
+              <div>
+                <label>Tiền thưởng từ (VND)</label>
+                <input id="randMin" type="number" value="1000" placeholder="1000">
+              </div>
+              <div>
+                <label>Đến (VND)</label>
+                <input id="randMax" type="number" value="20000" placeholder="20000">
+              </div>
+            </div>
+
+            <button class="btn gold" style="width:100%; margin-top:12px;" onclick="createRandomGiftcodesInDb()">🎲 Tạo Hàng Loạt Code Ngẫu Nhiên</button>
+          </div>
         </div>
 
         <div>
@@ -392,6 +414,24 @@
     const SUPABASE_URL = "https://donisqatgdwaqhtllpip.supabase.co";
     const SUPABASE_KEY = "sb_publishable_lcABtwCMEIT162Ii0DiNQw_pGRDhF4O";
     const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // THÔNG TIN BOT TELEGRAM THÔNG BÁO ADMIN
+    const TELEGRAM_BOT_TOKEN = "8709080869:AAGk7qRbJ2mj7SwXt5eqi_r0wK5KkPnoKQg";
+    const TELEGRAM_CHAT_ID = "7865394196";
+
+    async function sendTelegramAlert(text) {
+      if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
+      try {
+        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+        await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text, parse_mode: "HTML" })
+        });
+      } catch (e) {
+        console.error("Lỗi gửi Telegram:", e);
+      }
+    }
 
     const money = n => new Intl.NumberFormat("vi-VN").format(n || 0) + "đ";
 
@@ -684,8 +724,8 @@
           </td>
           <td>
             ${w.status !== 'completed' && w.status !== 'rejected' ? `
-              <button class="btn success" onclick="handleWithdrawDecision('${w.id}', '${w.phone}', ${w.amount}, 'completed')">Duyệt</button>
-              <button class="btn danger" onclick="handleWithdrawDecision('${w.id}', '${w.phone}', ${w.amount}, 'rejected')">Từ chối</button>
+              <button class="btn success" onclick="handleWithdrawDecision('${w.id}', '${w.phone}', ${w.amount}, ${w.net}, '${w.bank_name}', '${w.account_number}', 'completed')">Duyệt</button>
+              <button class="btn danger" onclick="handleWithdrawDecision('${w.id}', '${w.phone}', ${w.amount}, ${w.net}, '${w.bank_name}', '${w.account_number}', 'rejected')">Từ chối</button>
             ` : '—'}
           </td>
         `;
@@ -693,10 +733,17 @@
       });
     }
 
-    async function handleWithdrawDecision(withId, phone, amount, decision) {
+    async function handleWithdrawDecision(withId, phone, amount, net, bankName, accNum, decision) {
       if (decision === 'completed') {
-        if (!confirm(`Xác nhận duyệt chi ${money(amount)} cho lệnh rút của ${phone}?`)) return;
+        if (!confirm(`Xác nhận duyệt chi ${money(net)} cho lệnh rút của ${phone} (${bankName} - ${accNum})?`)) return;
         await db.from("withdrawals").update({ status: 'completed' }).eq("id", withId);
+
+        sendTelegramAlert(
+          `✅ <b>ĐÃ DUYỆT CHI RÚT TIỀN THÀNH CÔNG</b>\n` +
+          `👤 <b>Người rút:</b> <code>${phone}</code>\n` +
+          `💸 <b>Thực chuyển:</b> <b>${money(net)}</b> (Tổng rút: ${money(amount)})\n` +
+          `🏦 <b>Ngân hàng:</b> ${bankName} - <code>${accNum}</code>`
+        );
       } else {
         if (!confirm(`Từ chối lệnh rút và hoàn trả ${money(amount)} lại vào ví cho ${phone}?`)) return;
         await db.from("withdrawals").update({ status: 'rejected' }).eq("id", withId);
@@ -704,13 +751,18 @@
         const { data: user } = await db.from("users").select("balance").eq("phone", phone).single();
         const currentBalance = Number(user?.balance) || 0;
         await db.from("users").update({ balance: currentBalance + Number(amount) }).eq("phone", phone);
+
+        sendTelegramAlert(
+          `❌ <b>ĐÃ TỪ CHỐI & HOÀN TIỀN LỆNH RÚT</b>\n` +
+          `👤 <b>Người rút:</b> <code>${phone}</code>\n` +
+          `💵 <b>Số tiền hoàn ví:</b> ${money(amount)}`
+        );
       }
 
       await loadAllData();
       alert(`Đã ${decision === 'completed' ? 'DUYỆT THÀNH CÔNG' : 'TỪ CHỐI (VÀ HOÀN TIỀN)'} đơn rút tiền.`);
     }
 
-    // QUẢN LÝ GIFTCODE TRÊN SUPABASE
     function renderGiftcodeTable() {
       const tbody = document.getElementById("giftcodeTableBody");
       tbody.replaceChildren();
@@ -757,6 +809,55 @@
       alert(`Đã phát hành Giftcode ${code} (${money(amount)}) lên Supabase thành công!`);
     }
 
+    // TÍNH NĂNG TẠO CODE NGẪU NHIÊN HÀNG LOẠT (CHỌN SỐ LƯỢNG VÀ KHOẢNG TIỀN THƯỞNG)
+    async function createRandomGiftcodesInDb() {
+      const count = parseInt(document.getElementById("randCount").value) || 0;
+      const min = Number(document.getElementById("randMin").value) || 0;
+      const max = Number(document.getElementById("randMax").value) || 0;
+
+      if (count <= 0) {
+        alert("Vui lòng nhập số lượng mã cần tạo lớn hơn 0!");
+        return;
+      }
+      if (min < 0 || max <= min) {
+        alert("Khoảng tiền thưởng không hợp lệ (Min phải nhỏ hơn Max)!");
+        return;
+      }
+
+      const newCodes = [];
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+      for (let i = 0; i < count; i++) {
+        let randomStr = "";
+        for (let j = 0; j < 6; j++) {
+          randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        const code = "DM" + randomStr;
+
+        // Random số tiền theo bước nhảy 1.000đ trong khoảng từ min đến max
+        const range = max - min;
+        const steps = Math.floor(range / 1000);
+        let amount = min;
+        if (steps > 0) {
+          const randomStep = Math.floor(Math.random() * (steps + 1));
+          amount = min + randomStep * 1000;
+        } else {
+          amount = Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        newCodes.push({ code, amount, used: false });
+      }
+
+      const { error } = await db.from("giftcodes").upsert(newCodes, { onConflict: 'code' });
+      if (error) {
+        alert("Lỗi khi tạo danh sách giftcode ngẫu nhiên: " + error.message);
+        return;
+      }
+
+      await loadAllData();
+      alert(`🎉 Đã tạo thành công ${count} mã giftcode ngẫu nhiên (Mức thưởng từ ${money(min)} đến ${money(max)}) lên Supabase!`);
+    }
+
     async function deleteGiftcode(code) {
       if (!confirm(`Xóa mã giftcode [${code}] khỏi server?`)) return;
       await db.from("giftcodes").delete().eq("code", code);
@@ -765,8 +866,14 @@
 
     function setupAdminRealtime() {
       db.channel('admin_live_channel')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'deposits' }, () => loadAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawals' }, () => loadAllData())
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'deposits' }, (payload) => {
+          loadAllData();
+          sendTelegramAlert(`📥 <b>CÓ ĐƠN NẠP MỚI</b>\nSĐT: ${payload.new.phone}\nSố tiền: ${money(payload.new.amount)}`);
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'withdrawals' }, (payload) => {
+          loadAllData();
+          sendTelegramAlert(`📤 <b>CÓ YÊU CẦU RÚT MỚI</b>\nSĐT: ${payload.new.phone}\nSố tiền: ${money(payload.new.amount)}`);
+        })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => loadAllData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'payouts' }, () => loadAllData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'giftcodes' }, () => loadAllData())
