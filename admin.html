@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070c18">
+  <title>DollarMine - Master Admin Panel</title>
+
+  <!-- Thư viện Supabase Cloud chính thức -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    :root {
+      --bg: #050811;
+      --glass: rgba(14, 22, 44, 0.85);
+      --glass-border: rgba(255, 255, 255, 0.12);
+      --specular: inset 0 1px 1px rgba(255, 255, 255, 0.2);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --cyan: #00e5ff;
+      --gold: #ffca28;
+      --green: #10b981;
+      --red: #f43f5e;
+      --purple: #8b5cf6;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.5 system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    [hidden] { display: none !important; }
+
+    .liquid-bg {
+      position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden;
+    }
+    .blob {
+      position: absolute; border-radius: 50%; filter: blur(70px); opacity: 0.25;
+      animation: float 20s infinite alternate ease-in-out;
+    }
+    .blob-1 { width: 500px; height: 500px; background: #dc2626; top: -100px; left: -100px; }
+    .blob-2 { width: 600px; height: 600px; background: #2563eb; bottom: -100px; right: -100px; }
+    @keyframes float {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(30px, 40px) scale(1.1); }
+    }
+
+    .wrap { max-width: 1200px; margin: auto; padding: 18px 16px 60px; }
+
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-bottom: 20px; border-bottom: 1px solid var(--glass-border);
+      margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+    }
+    .admin-logo {
+      font-size: 22px; font-weight: 900; letter-spacing: -0.5px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .admin-logo span { color: var(--red); text-shadow: 0 0 14px rgba(244, 63, 94, 0.6); }
+    .admin-badge {
+      padding: 4px 10px; border-radius: 6px; background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.4); color: var(--red); font-size: 11px; font-weight: 800;
+    }
+
+    .live-status {
+      display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800;
+      color: var(--green); background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4);
+      padding: 5px 12px; border-radius: 99px;
+    }
+    .live-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+      box-shadow: 0 0 8px var(--green); animation: pulseDot 1.5s infinite;
+    }
+    @keyframes pulseDot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    .card {
+      padding: 20px; border-radius: 20px; background: var(--glass);
+      border: 1px solid var(--glass-border); box-shadow: 0 16px 36px rgba(0,0,0,0.5), var(--specular);
+      backdrop-filter: blur(16px); margin-bottom: 20px;
+    }
+
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+    .stat-title { color: var(--muted); font-size: 13px; margin-bottom: 4px; }
+    .stat-val { font-size: 24px; font-weight: 900; color: #fff; }
+
+    .admin-tabs {
+      display: flex; gap: 10px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 4px;
+    }
+    .admin-tabs button {
+      padding: 10px 18px; border-radius: 12px; border: 1px solid var(--glass-border);
+      background: rgba(255, 255, 255, 0.04); color: var(--muted); font-weight: 750;
+      white-space: nowrap; transition: all 0.2s;
+    }
+    .admin-tabs button.active {
+      background: rgba(0, 229, 255, 0.15); border-color: var(--cyan); color: var(--cyan);
+      box-shadow: 0 0 16px rgba(0, 229, 255, 0.25);
+    }
+
+    .table-container { width: 100%; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th {
+      padding: 12px 14px; color: var(--muted); font-weight: 700; border-bottom: 1px solid var(--glass-border);
+      font-size: 13px;
+    }
+    td {
+      padding: 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 13px;
+    }
+    tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+    .btn {
+      padding: 8px 14px; border-radius: 10px; border: 1px solid transparent;
+      font-weight: 750; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;
+      transition: all 0.2s; text-decoration: none;
+    }
+    .btn.primary { background: linear-gradient(135deg, #00f0ff, #00a8ff); color: #041226; }
+    .btn.danger { background: rgba(244, 63, 94, 0.15); border-color: rgba(244, 63, 94, 0.4); color: var(--red); }
+    .btn.success { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); color: var(--green); }
+    .btn.warning { background: rgba(255, 202, 40, 0.15); border-color: rgba(255, 202, 40, 0.4); color: var(--gold); }
+    .btn.secondary { background: rgba(255, 255, 255, 0.06); border-color: var(--glass-border); color: #fff; }
+    .btn:hover { transform: translateY(-2px); }
+
+    input, select, textarea {
+      width: 100%; padding: 11px 14px; border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.12); color: #fff;
+      background: rgba(8, 14, 30, 0.7); box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+      margin-top: 4px; margin-bottom: 12px;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: var(--cyan); box-shadow: 0 0 10px rgba(0, 229, 255, 0.35);
+    }
+    label { font-size: 13px; color: var(--muted); font-weight: 600; display: block; }
+
+    dialog {
+      width: min(560px, calc(100% - 28px)); max-height: 85vh; overflow: auto;
+      border: 1px solid rgba(0, 229, 255, 0.35); border-radius: 20px;
+      color: var(--text); background: rgba(12, 18, 36, 0.98); padding: 24px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 35px rgba(0, 229, 255, 0.2);
+      backdrop-filter: blur(20px);
+    }
+    dialog::backdrop { background: rgba(4, 7, 15, 0.8); backdrop-filter: blur(6px); }
+
+    .tag-vip {
+      padding: 3px 8px; border-radius: 6px; font-weight: 850; font-size: 11px;
+      background: rgba(255, 202, 40, 0.15); border: 1px solid rgba(255, 202, 40, 0.4); color: var(--gold);
+    }
+
+    .edit-section-title {
+      color: var(--cyan); font-weight: 800; font-size: 14px; margin: 16px 0 8px;
+      padding-bottom: 4px; border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    @media (max-width: 800px) {
+      .grid-4 { grid-template-columns: 1fr 1fr; }
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="liquid-bg">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+  </div>
+
+  <div class="wrap">
+    <header>
+      <div class="admin-logo">
+        🛡️ Dollar<span>Mine</span> Control Center
+        <span class="admin-badge">ROOT ADMIN</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <span class="live-status"><span class="live-dot"></span> SUPABASE REALTIME LIVE</span>
+        <button class="btn warning" onclick="seedDemoAccounts()">🧪 Tạo Lại Dữ Liệu Demo</button>
+        <button class="btn primary" onclick="loadAllData()">🔄 Đồng bộ</button>
+      </div>
+    </header>
+
+    <!-- 4 Ô THỐNG KÊ TOÀN SERVER (ĐỒNG BỘ SUPABASE) -->
+    <div class="grid-4">
+      <div class="card">
+        <div class="stat-title">Tổng Thành Viên</div>
+        <div class="stat-val" id="statTotalUsers">0</div>
+      </div>
+      <div class="card">
+        <div class="stat-title">Tổng Tiền Hệ Thống (VND)</div>
+        <div class="stat-val" id="statTotalBalance" style="color:var(--green)">0đ</div>
+      </div>
+      <div class="card">
+        <div class="stat-title">Đơn Nạp Đang Chờ</div>
+        <div class="stat-val" id="statPendingDeposit" style="color:var(--cyan)">0</div>
+      </div>
+      <div class="card">
+        <div class="stat-title">Lệnh Rút Đang Chờ</div>
+        <div class="stat-val" id="statPendingWithdraw" style="color:var(--gold)">0</div>
+      </div>
+    </div>
+
+    <!-- TAB MENU QUẢN TRỊ -->
+    <div class="admin-tabs">
+      <button class="active" onclick="switchSection('users')">👥 Quản Lý Thành Viên</button>
+      <button onclick="switchSection('deposits')">📥 Duyệt Nạp Tiền</button>
+      <button onclick="switchSection('withdrawals')">💳 Duyệt Rút Tiền</button>
+      <button onclick="switchSection('giftcode')">🎁 Tạo Giftcode</button>
+      <button onclick="switchSection('broadcast')">📢 Thông Báo Toàn Server</button>
+      <button onclick="switchSection('config')">⚙️ Cấu Hình Máy Chủ</button>
+    </div>
+
+    <!-- MỤC 1: QUẢN LÝ THÀNH VIÊN (SỬA VÍ & TÀI KHOẢN NGÂN HÀNG RÚT TIỀN) -->
+    <section id="sec-users" class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+        <div>
+          <h3 style="margin:0;">Danh Sách Người Chơi Toàn Server (Supabase Cloud)</h3>
+          <small class="muted">Nhấn nút <strong>✏️ Sửa</strong> để thay đổi số dư ví, cấp VIP, tên và số tài khoản ngân hàng rút tiền.</small>
+        </div>
+        <input id="searchUser" placeholder="🔍 Tìm theo số điện thoại..." style="width:240px; margin:0;" oninput="renderUsersTable()">
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>SĐT</th>
+              <th>Cấp Bậc</th>
+              <th>Số Dư VND</th>
+              <th>Đô La ($)</th>
+              <th>Tài Khoản Rút Tiền</th>
+              <th>Ngày Tạo</th>
+              <th>Hành Động</th>
+            </tr>
+          </thead>
+          <tbody id="userTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- MỤC 2: DUYỆT NẠP TIỀN THỦ CÔNG -->
+    <section id="sec-deposits" class="card" hidden>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+        <div>
+          <h3 style="margin:0;">Duyệt Đơn Nạp Tiền Ngân Hàng (MB Bank)</h3>
+          <small class="muted">Kiểm tra lịch sử tài khoản <strong>0365355946 - VU HOANG HIEP</strong> với nội dung là SĐT người chơi.</small>
+        </div>
+        <button class="btn primary" onclick="loadAllData()">🔄 Làm mới đơn nạp</button>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Mã Đơn</th>
+              <th>Người Nạp (SĐT)</th>
+              <th>Số Tiền Nạp</th>
+              <th>Nội Dung CK</th>
+              <th>Thời Gian</th>
+              <th>Trạng Thái</th>
+              <th>Thao Tác</th>
+            </tr>
+          </thead>
+          <tbody id="depositTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- MỤC 3: DUYỆT RÚT TIỀN -->
+    <section id="sec-withdrawals" class="card" hidden>
+      <h3 style="margin-top:0;">Duyệt Lệnh Rút Tiền Ngân Hàng</h3>
+      <p class="muted">Kiểm tra thông tin tài khoản của người chơi trước khi bấm duyệt hoặc hủy lệnh.</p>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Người Rút (SĐT)</th>
+              <th>Số Tiền</th>
+              <th>Thực Nhận (Sau 5%)</th>
+              <th>Ngân Hàng</th>
+              <th>Số Tài Khoản</th>
+              <th>Tên Chủ Thẻ</th>
+              <th>Trạng Thái</th>
+              <th>Xử Lý</th>
+            </tr>
+          </thead>
+          <tbody id="withdrawTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- MỤC 4: TẠO GIFTCODE -->
+    <section id="sec-giftcode" class="card" hidden>
+      <div class="grid-2">
+        <div>
+          <h3 style="margin-top:0;">Tạo Giftcode Sự Kiện Mới</h3>
+          <label>Mã Code (In hoa, không dấu)</label>
+          <input id="gcCode" placeholder="Ví dụ: TRIANVIP100K">
+
+          <label>Loại phần thưởng</label>
+          <select id="gcType">
+            <option value="vnd">Tiền mặt VND</option>
+            <option value="coin">Đô la đào ($)</option>
+          </select>
+
+          <label>Giá trị phần thưởng</label>
+          <input id="gcValue" type="number" placeholder="Ví dụ: 50000">
+
+          <label>Số lượt nhập tối đa</label>
+          <input id="gcLimit" type="number" placeholder="Ví dụ: 100">
+
+          <button class="btn primary" style="width:100%; margin-top:8px;" onclick="createGiftcode()">🚀 Kích Hoạt Giftcode</button>
+        </div>
+
+        <div>
+          <h3 style="margin-top:0;">Danh Sách Giftcode Đang Chạy</h3>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Mã Code</th>
+                  <th>Thưởng</th>
+                  <th>Lượt Dùng</th>
+                  <th>Xóa</th>
+                </tr>
+              </thead>
+              <tbody id="giftcodeTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MỤC 5: THÔNG BÁO TOÀN SERVER -->
+    <section id="sec-broadcast" class="card" hidden>
+      <h3 style="margin-top:0;">Phát Thông Báo Toàn Máy Chủ</h3>
+      <p class="muted">Thông báo này sẽ lập tức xuất hiện dưới dạng banner và popup khi bất kỳ thành viên nào mở ứng dụng.</p>
+
+      <label>Tiêu đề thông báo</label>
+      <input id="bcTitle" placeholder="Ví dụ: 🔔 BẢO TRÌ NÂNG CẤP MÁY CHỦ / SỰ KIỆN X2 COIN">
+
+      <label>Nội dung chi tiết</label>
+      <textarea id="bcContent" rows="5" placeholder="Nhập nội dung thông báo gửi đến toàn thể người chơi..."></textarea>
+
+      <label>Mức độ khẩn cấp</label>
+      <select id="bcType">
+        <option value="info">Thông tin bình thường (Xanh dương)</option>
+        <option value="alert">Khẩn cấp / Cảnh báo (Đỏ)</option>
+      </select>
+
+      <button class="btn primary" onclick="sendBroadcast()">📢 Phát Sóng Thông Báo Ngay</button>
+    </section>
+
+    <!-- MỤC 6: CẤU HÌNH HỆ THỐNG -->
+    <section id="sec-config" class="card" hidden>
+      <h3 style="margin-top:0;">Cấu Hình Hệ Thống & Cổng Thanh Toán</h3>
+      <div class="grid-2">
+        <div>
+          <label>Ngân Hàng Nhận Tiền</label>
+          <input id="cfgBank" value="MB Bank">
+
+          <label>Số Tài Khoản Nhận</label>
+          <input id="cfgAccount" value="0365355946">
+
+          <label>Tên Chủ Tài Khoản</label>
+          <input id="cfgName" value="VU HOANG HIEP">
+        </div>
+        <div>
+          <label>Phí rút tiền (%)</label>
+          <input id="cfgFee" type="number" value="5">
+
+          <label>Hoa hồng F1 (%)</label>
+          <input id="cfgF1" type="number" value="15">
+
+          <label>Hoa hồng F2 (%)</label>
+          <input id="cfgF2" type="number" value="3">
+
+          <label>Hoa hồng F3 (%)</label>
+          <input id="cfgF3" type="number" value="2">
+        </div>
+      </div>
+      <button class="btn primary" onclick="saveConfig()">💾 Lưu Cấu Hình Hệ Thống</button>
+    </section>
+  </div>
+
+  <!-- MODAL CHỈNH SỬA TOÀN DIỆN THÀNH VIÊN (SỐ DƯ & TÀI KHOẢN RÚT TIỀN) -->
+  <dialog id="editUserDialog">
+    <h3 style="color:var(--cyan); margin-top:0;">Can Thiệp Người Chơi: <span id="edtPhone"></span></h3>
+    
+    <!-- KHỐI 1: TÀI CHÍNH & VÍ -->
+    <div class="edit-section-title">💰 Quản Lý Số Dư Ví & Cấp Bậc</div>
+    <div class="grid-2">
+      <div>
+        <label>Số Dư Ví (VND)</label>
+        <input id="edtBalance" type="number">
+      </div>
+      <div>
+        <label>Số Đô La Khai Thác ($)</label>
+        <input id="edtCoins" type="number">
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <label>Cấp Bậc VIP</label>
+        <select id="edtVip">
+          <option value="0">VIP 0 (Thành viên mới)</option>
+          <option value="1">VIP 1 (100.000đ)</option>
+          <option value="2">VIP 2 (200.000đ)</option>
+          <option value="3">VIP 3 (300.000đ)</option>
+          <option value="4">VIP 4 (500.000đ)</option>
+          <option value="5">VIP 5 (700.000đ)</option>
+          <option value="6">VIP 6 (1.000.000đ)</option>
+          <option value="7">VIP 7 (2.000.000đ)</option>
+        </select>
+      </div>
+      <div>
+        <label>Đổi Mật Khẩu Đăng Nhập</label>
+        <input id="edtPass" placeholder="Để trống nếu không đổi">
+      </div>
+    </div>
+
+    <!-- KHỐI 2: TÀI KHOẢN NGÂN HÀNG RÚT TIỀN -->
+    <div class="edit-section-title">🏦 Thông Tin Tài Khoản Rút Tiền</div>
+    <div class="grid-2">
+      <div>
+        <label>Ngân Hàng Nhận</label>
+        <input id="edtBankName" placeholder="Ví dụ: MB Bank, Vietcombank...">
+      </div>
+      <div>
+        <label>Số Tài Khoản Nhận</label>
+        <input id="edtBankAccountNumber" placeholder="Số tài khoản ngân hàng">
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <label>Tên Chủ Tài Khoản (In hoa)</label>
+        <input id="edtBankAccountName" placeholder="Ví dụ: NGUYEN VAN A">
+      </div>
+      <div>
+        <label>Trạng Thái Khóa Tài Khoản</label>
+        <select id="edtBankLocked">
+          <option value="true">🔒 Đã khóa cố định (Không cho sửa)</option>
+          <option value="false">🔓 Đang mở (Cho phép người dùng tự sửa)</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
+      <button class="btn secondary" onclick="document.getElementById('editUserDialog').close()">Hủy bỏ</button>
+      <button class="btn primary" onclick="saveUserEdit()">💾 Lưu Toàn Bộ Thay Đổi</button>
+    </div>
+  </dialog>
+
+  <script>
+    "use strict";
+
+    // KẾT NỐI SUPABASE CLOUD CHÍNH THỨC
+    const SUPABASE_URL = "https://donisqatgdwaqhtllpip.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_lcABtwCMEIT162Ii0DiNQw_pGRDhF4O";
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const money = n => new Intl.NumberFormat("vi-VN").format(n || 0) + "đ";
+    const fmt = n => new Intl.NumberFormat("vi-VN").format(n || 0);
+
+    let users = [];
+    let payoutsMap = new Map();
+    let deposits = [];
+    let withdrawals = [];
+    let editingPhone = null;
+
+    // TẢI TOÀN BỘ DỮ LIỆU TỪ SUPABASE CLOUD
+    async function loadAllData() {
+      // 1. Tải danh sách users
+      const { data: userList } = await db.from("users").select("*").order("created_at", { ascending: false });
+      users = userList || [];
+
+      // 2. Tải danh sách tài khoản ngân hàng rút tiền (payouts)
+      const { data: payoutList } = await db.from("payouts").select("*");
+      payoutsMap.clear();
+      (payoutList || []).forEach(p => payoutsMap.set(p.phone, p));
+
+      // 3. Tải danh sách nạp tiền (deposits)
+      const { data: depList } = await db.from("deposits").select("*").order("created_at", { ascending: false });
+      deposits = depList || [];
+
+      // 4. Tải danh sách rút tiền (withdrawals)
+      const { data: withList } = await db.from("withdrawals").select("*").order("created_at", { ascending: false });
+      withdrawals = withList || [];
+
+      updateServerStats();
+      renderUsersTable();
+      renderDepositTable();
+      renderWithdrawTable();
+      renderGiftcodeTable();
+      loadConfig();
+    }
+
+    // TẠO DỮ LIỆU DEMO LÊN THẲNG SUPABASE CLOUD
+    async function seedDemoAccounts(alertUser = true) {
+      const demoUsers = [
+        { 
+          phone: "0912345678", password: "password123", my_ref_code: "REF5678", 
+          vip: "3", balance: 1500000, coins: 450
+        },
+        { 
+          phone: "0987654321", password: "password123", my_ref_code: "REF4321", 
+          vip: "1", balance: 250000, coins: 120
+        },
+        { 
+          phone: "0365355946", password: "password123", my_ref_code: "REF5946", 
+          vip: "6", balance: 5800000, coins: 3400
+        },
+        { 
+          phone: "0778899112", password: "password123", my_ref_code: "REF9112", 
+          vip: "0", balance: 50000, coins: 15
+        },
+        { 
+          phone: "0833221100", password: "password123", my_ref_code: "REF1100", 
+          vip: "2", balance: 750000, coins: 280
+        }
+      ];
+
+      const demoPayouts = [
+        { phone: "0912345678", bank_name: "MB Bank", account_number: "0912345678", account_name: "NGUYEN VAN DEMO", locked: true },
+        { phone: "0987654321", bank_name: "Vietcombank", account_number: "1029384756", account_name: "TRAN VAN TEST", locked: true },
+        { phone: "0365355946", bank_name: "MB Bank", account_number: "0365355946", account_name: "VU HOANG HIEP", locked: true },
+        { phone: "0778899112", bank_name: "Techcombank", account_number: "19034567890", account_name: "LE THI HOANG", locked: false },
+        { phone: "0833221100", bank_name: "ACB", account_number: "246813579", account_name: "HOANG MINH DUC", locked: true }
+      ];
+
+      for (const u of demoUsers) {
+        await db.from("users").upsert(u);
+      }
+      for (const p of demoPayouts) {
+        await db.from("payouts").upsert(p);
+      }
+
+      await loadAllData();
+
+      if (alertUser) {
+        alert("🎉 Đã tạo và đồng bộ 5 tài khoản demo trực tiếp lên cơ sở dữ liệu Supabase!");
+      }
+    }
+
+    function switchSection(secId) {
+      document.querySelectorAll("section[id^='sec-']").forEach(el => el.hidden = true);
+      document.querySelectorAll(".admin-tabs button").forEach(el => el.classList.remove("active"));
+      document.getElementById(`sec-${secId}`).hidden = false;
+      event.target.classList.add("active");
+
+      if (secId === 'users') renderUsersTable();
+      if (secId === 'deposits') renderDepositTable();
+      if (secId === 'withdrawals') renderWithdrawTable();
+      if (secId === 'giftcode') renderGiftcodeTable();
+    }
+
+    function updateServerStats() {
+      document.getElementById("statTotalUsers").textContent = users.length;
+      
+      let totalVnd = 0;
+      users.forEach(u => {
+        totalVnd += Number(u.balance) || 0;
+      });
+      document.getElementById("statTotalBalance").textContent = money(totalVnd);
+
+      document.getElementById("statPendingDeposit").textContent = deposits.filter(d => d.status === "pending").length;
+      document.getElementById("statPendingWithdraw").textContent = withdrawals.filter(w => w.status === 'processing' || w.status === 'pending').length;
+    }
+
+    // ==========================================
+    // 1. QUẢN LÝ THÀNH VIÊN & NGÂN HÀNG (SUPABASE)
+    // ==========================================
+    function renderUsersTable() {
+      const tbody = document.getElementById("userTableBody");
+      tbody.replaceChildren();
+
+      const search = document.getElementById("searchUser").value.trim();
+      const filtered = users.filter(u => !search || u.phone.includes(search));
+
+      if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--muted)">Không tìm thấy người chơi nào.</td></tr>`;
+        return;
+      }
+
+      filtered.forEach(u => {
+        const uBalance = Number(u.balance) || 0;
+        const uCoins = Number(u.coins) || 0;
+        const uVip = u.vip || "0";
+        const payout = payoutsMap.get(u.phone) || {};
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><strong>${u.phone}</strong></td>
+          <td><span class="tag-vip">VIP ${uVip}</span></td>
+          <td style="color:var(--green); font-weight:750;">${money(uBalance)}</td>
+          <td style="color:var(--cyan); font-weight:750;">${fmt(uCoins)} $</td>
+          <td>
+            ${payout.bank_name ? `
+              <div style="font-size:12px;">
+                <strong>${payout.bank_name}</strong> · <code>${payout.account_number}</code><br>
+                <span class="muted">${payout.account_name}</span> 
+                ${payout.locked ? '<span style="color:var(--gold)">🔒</span>' : '<span style="color:var(--green)">🔓</span>'}
+              </div>
+            ` : '<span class="muted">Chưa cài đặt</span>'}
+          </td>
+          <td><small class="muted">${new Date(u.created_at || Date.now()).toLocaleDateString("vi-VN")}</small></td>
+          <td>
+            <button class="btn warning" onclick="openEditUser('${u.phone}')">✏️ Sửa</button>
+            <button class="btn danger" onclick="deleteUser('${u.phone}')">🗑️ Xóa</button>
+          </td>
+        `;
+        tbody.append(tr);
+      });
+    }
+
+    // Mở Modal can thiệp số dư và tài khoản ngân hàng
+    async function openEditUser(phone) {
+      editingPhone = phone;
+      const { data: u } = await db.from("users").select("*").eq("phone", phone).maybeSingle();
+      if (!u) return;
+
+      const { data: payout } = await db.from("payouts").select("*").eq("phone", phone).maybeSingle();
+
+      document.getElementById("edtPhone").textContent = phone;
+      document.getElementById("edtBalance").value = u.balance || 0;
+      document.getElementById("edtCoins").value = u.coins || 0;
+      document.getElementById("edtVip").value = u.vip || "0";
+      document.getElementById("edtPass").value = "";
+
+      // Nạp thông tin ngân hàng rút tiền
+      document.getElementById("edtBankName").value = payout?.bank_name || "";
+      document.getElementById("edtBankAccountNumber").value = payout?.account_number || "";
+      document.getElementById("edtBankAccountName").value = payout?.account_name || "";
+      document.getElementById("edtBankLocked").value = payout?.locked === false ? "false" : "true";
+
+      document.getElementById("editUserDialog").showModal();
+    }
+
+    // Lưu toàn bộ chỉnh sửa trực tiếp lên Supabase (Tự động cập nhật bên app người chơi)
+    async function saveUserEdit() {
+      if (!editingPhone) return;
+
+      const bal = Number(document.getElementById("edtBalance").value) || 0;
+      const cns = Number(document.getElementById("edtCoins").value) || 0;
+      const vip = document.getElementById("edtVip").value;
+      const newPass = document.getElementById("edtPass").value.trim();
+
+      const bankName = document.getElementById("edtBankName").value.trim();
+      const accountNumber = document.getElementById("edtBankAccountNumber").value.trim();
+      const accountName = document.getElementById("edtBankAccountName").value.trim();
+      const locked = document.getElementById("edtBankLocked").value === "true";
+
+      // 1. Cập nhật bảng users trên Supabase
+      let userUpdate = { balance: bal, coins: cns, vip: vip };
+      if (newPass) userUpdate.password = newPass;
+
+      const { error: userErr } = await db.from("users").update(userUpdate).eq("phone", editingPhone);
+      if (userErr) {
+        alert("Lỗi cập nhật người dùng: " + userErr.message);
+        return;
+      }
+
+      // 2. Cập nhật bảng payouts trên Supabase
+      const { error: payoutErr } = await db.from("payouts").upsert({
+        phone: editingPhone,
+        bank_name: bankName,
+        account_number: accountNumber,
+        account_name: accountName,
+        locked: locked
+      });
+      if (payoutErr) {
+        alert("Lỗi cập nhật tài khoản rút tiền: " + payoutErr.message);
+        return;
+      }
+
+      document.getElementById("editUserDialog").close();
+      await loadAllData();
+      alert(`Đã lưu thành công số dư và thông tin rút tiền của ${editingPhone}! App người chơi đã tự đồng bộ.`);
+    }
+
+    async function deleteUser(phone) {
+      if (!confirm(`Bạn có chắc muốn XÓA VĨNH VIỄN tài khoản ${phone} trên máy chủ Supabase?`)) return;
+      await db.from("users").delete().eq("phone", phone);
+      await db.from("payouts").delete().eq("phone", phone);
+      await db.from("deposits").delete().eq("phone", phone);
+      await db.from("withdrawals").delete().eq("phone", phone);
+      await loadAllData();
+    }
+
+    // ==========================================
+    // 2. DUYỆT NẠP TIỀN (SUPABASE CLOUD)
+    // ==========================================
+    function renderDepositTable() {
+      const tbody = document.getElementById("depositTableBody");
+      tbody.replaceChildren();
+
+      if (!deposits.length) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--muted)">Chưa có yêu cầu nạp tiền nào.</td></tr>`;
+        return;
+      }
+
+      deposits.forEach((d) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><code>${d.id}</code></td>
+          <td><strong>${d.phone}</strong></td>
+          <td style="color:var(--green); font-weight:800;">${money(d.amount)}</td>
+          <td><code style="color:var(--cyan);">${d.content}</code></td>
+          <td><small class="muted">${new Date(d.created_at).toLocaleString("vi-VN")}</small></td>
+          <td>
+            <span class="btn ${d.status === 'confirmed' ? 'success' : d.status === 'cancelled' ? 'danger' : 'warning'}" style="padding:3px 8px; font-size:11px;">
+              ${d.status === 'confirmed' ? 'Đã duyệt' : d.status === 'cancelled' ? 'Đã hủy' : 'Chờ duyệt'}
+            </span>
+          </td>
+          <td>
+            ${d.status === 'pending' ? `
+              <button class="btn success" onclick="confirmDeposit('${d.id}', '${d.phone}', ${d.amount})">✓ Duyệt (+Tiền)</button>
+              <button class="btn danger" onclick="cancelDeposit('${d.id}')">✕ Hủy đơn</button>
+            ` : '—'}
+          </td>
+        `;
+        tbody.append(tr);
+      });
+    }
+
+    // DUYỆT NẠP TIỀN -> BƠM TIỀN SANG INDEX.HTML TỨC THÌ
+    async function confirmDeposit(depId, phone, amount) {
+      if (!confirm(`Xác nhận duyệt nạp ${money(amount)} cho người chơi ${phone}?`)) return;
+
+      // Cập nhật trạng thái đơn nạp
+      await db.from("deposits").update({ status: 'confirmed' }).eq("id", depId);
+
+      // Lấy số dư hiện tại và cộng thêm
+      const { data: user } = await db.from("users").select("balance").eq("phone", phone).single();
+      const currentBalance = Number(user?.balance) || 0;
+      await db.from("users").update({ balance: currentBalance + Number(amount) }).eq("phone", phone);
+
+      await loadAllData();
+      alert(`Đã duyệt nạp ${money(amount)} vào ví của ${phone}! Máy người chơi đã tự nhảy tiền.`);
+    }
+
+    async function cancelDeposit(depId) {
+      if (!confirm(`Hủy đơn nạp tiền này?`)) return;
+      await db.from("deposits").update({ status: 'cancelled' }).eq("id", depId);
+      await loadAllData();
+    }
+
+    // ==========================================
+    // 3. DUYỆT RÚT TIỀN (SUPABASE CLOUD)
+    // ==========================================
+    function renderWithdrawTable() {
+      const tbody = document.getElementById("withdrawTableBody");
+      tbody.replaceChildren();
+
+      if (!withdrawals.length) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--muted)">Chưa có yêu cầu rút tiền nào.</td></tr>`;
+        return;
+      }
+
+      withdrawals.forEach((w) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><strong>${w.phone}</strong></td>
+          <td>${money(w.amount)}</td>
+          <td style="color:var(--green)">${money(w.net)}</td>
+          <td>${w.bank_name}</td>
+          <td><code>${w.account_number}</code></td>
+          <td>${w.account_name}</td>
+          <td>
+            <span class="btn ${w.status === 'completed' ? 'success' : w.status === 'rejected' ? 'danger' : 'warning'}" style="padding:3px 8px; font-size:11px;">
+              ${w.status === 'completed' ? 'Thành công' : w.status === 'rejected' ? 'Từ chối' : 'Chờ xử lý'}
+            </span>
+          </td>
+          <td>
+            ${w.status !== 'completed' && w.status !== 'rejected' ? `
+              <button class="btn success" onclick="handleWithdrawDecision('${w.id}', '${w.phone}', ${w.amount}, 'completed')">Duyệt</button>
+              <button class="btn danger" onclick="handleWithdrawDecision('${w.id}', '${w.phone}', ${w.amount}, 'rejected')">Từ chối</button>
+            ` : '—'}
+          </td>
+        `;
+        tbody.append(tr);
+      });
+    }
+
+    async function handleWithdrawDecision(withId, phone, amount, decision) {
+      if (decision === 'completed') {
+        if (!confirm(`Xác nhận duyệt chi ${money(amount)} cho lệnh rút của ${phone}?`)) return;
+        await db.from("withdrawals").update({ status: 'completed' }).eq("id", withId);
+      } else {
+        if (!confirm(`Từ chối lệnh rút và hoàn trả ${money(amount)} lại vào ví cho ${phone}?`)) return;
+        await db.from("withdrawals").update({ status: 'rejected' }).eq("id", withId);
+
+        // Hoàn lại tiền cho người chơi
+        const { data: user } = await db.from("users").select("balance").eq("phone", phone).single();
+        const currentBalance = Number(user?.balance) || 0;
+        await db.from("users").update({ balance: currentBalance + Number(amount) }).eq("phone", phone);
+      }
+
+      await loadAllData();
+      alert(`Đã ${decision === 'completed' ? 'DUYỆT THÀNH CÔNG' : 'TỪ CHỐI (VÀ HOÀN TIỀN)'} đơn rút tiền.`);
+    }
+
+    // ==========================================
+    // 4. GIFTCODE & THÔNG BÁO
+    // ==========================================
+    function createGiftcode() {
+      const code = document.getElementById("gcCode").value.trim().toUpperCase();
+      const type = document.getElementById("gcType").value;
+      const val = Number(document.getElementById("gcValue").value);
+      const limit = Number(document.getElementById("gcLimit").value) || 1;
+
+      if (!code || !val) {
+        alert("Vui lòng nhập mã code và giá trị thưởng.");
+        return;
+      }
+
+      let giftcodes = JSON.parse(localStorage.getItem("cm_giftcodes") || "[]");
+      if (giftcodes.some(g => g.code === code)) {
+        alert("Mã Giftcode này đã tồn tại!");
+        return;
+      }
+
+      giftcodes.push({ code, type, value: val, limit, used: 0, createdAt: new Date().toISOString() });
+      localStorage.setItem("cm_giftcodes", JSON.stringify(giftcodes));
+
+      document.getElementById("gcCode").value = "";
+      document.getElementById("gcValue").value = "";
+      renderGiftcodeTable();
+      alert(`Đã phát hành Giftcode ${code} thành công!`);
+    }
+
+    function renderGiftcodeTable() {
+      const tbody = document.getElementById("giftcodeTableBody");
+      tbody.replaceChildren();
+
+      let giftcodes = JSON.parse(localStorage.getItem("cm_giftcodes") || "[]");
+      if (!giftcodes.length) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--muted)">Chưa có giftcode nào.</td></tr>`;
+        return;
+      }
+
+      giftcodes.forEach((g, idx) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><strong style="color:var(--cyan)">${g.code}</strong></td>
+          <td style="color:var(--green)">${g.type === 'vnd' ? money(g.value) : fmt(g.value) + ' $'}</td>
+          <td>${g.used}/${g.limit}</td>
+          <td><button class="btn danger" onclick="deleteGiftcode(${idx})">Xóa</button></td>
+        `;
+        tbody.append(tr);
+      });
+    }
+
+    function deleteGiftcode(idx) {
+      let giftcodes = JSON.parse(localStorage.getItem("cm_giftcodes") || "[]");
+      giftcodes.splice(idx, 1);
+      localStorage.setItem("cm_giftcodes", JSON.stringify(giftcodes));
+      renderGiftcodeTable();
+    }
+
+    function sendBroadcast() {
+      const title = document.getElementById("bcTitle").value.trim();
+      const content = document.getElementById("bcContent").value.trim();
+      const type = document.getElementById("bcType").value;
+
+      if (!title || !content) {
+        alert("Vui lòng nhập tiêu đề và nội dung thông báo.");
+        return;
+      }
+
+      const broadcastData = { title, content, type, time: new Date().toISOString() };
+      localStorage.setItem("cm_broadcast", JSON.stringify(broadcastData));
+      alert("📢 Đã phát thông báo thành công đến toàn bộ thành viên máy chủ!");
+    }
+
+    function loadConfig() {
+      const savedConfig = JSON.parse(localStorage.getItem("cm_system_config") || "null");
+      if (savedConfig) {
+        document.getElementById("cfgBank").value = savedConfig.bankName || "MB Bank";
+        document.getElementById("cfgAccount").value = savedConfig.accountNumber || "0365355946";
+        document.getElementById("cfgName").value = savedConfig.accountName || "VU HOANG HIEP";
+        document.getElementById("cfgFee").value = savedConfig.withdrawFee || 5;
+        document.getElementById("cfgF1").value = savedConfig.f1 || 15;
+        document.getElementById("cfgF2").value = savedConfig.f2 || 3;
+        document.getElementById("cfgF3").value = savedConfig.f3 || 2;
+      }
+    }
+
+    function saveConfig() {
+      const config = {
+        bankName: document.getElementById("cfgBank").value,
+        accountNumber: document.getElementById("cfgAccount").value,
+        accountName: document.getElementById("cfgName").value,
+        withdrawFee: document.getElementById("cfgFee").value,
+        f1: document.getElementById("cfgF1").value,
+        f2: document.getElementById("cfgF2").value,
+        f3: document.getElementById("cfgF3").value
+      };
+      localStorage.setItem("cm_system_config", JSON.stringify(config));
+      alert("Đã lưu cấu hình hệ thống máy chủ!");
+    }
+
+    // ==========================================
+    // 5. THIẾT LẬP SUPABASE REALTIME TOÀN HỆ THỐNG
+    // ==========================================
+    function setupAdminRealtime() {
+      db.channel('admin_live_channel')
+        // Có đơn nạp tiền mới từ người chơi
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'deposits' },
+          (payload) => {
+            loadAllData();
+            alert(`🔔 [REALTIME] CÓ ĐƠN NẠP TIỀN MỚI!\nSĐT: ${payload.new.phone}\nSố tiền: ${money(payload.new.amount)}`);
+          }
+        )
+        // Có yêu cầu rút tiền mới từ người chơi
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'withdrawals' },
+          (payload) => {
+            loadAllData();
+            alert(`⚠️ [REALTIME] CÓ YÊU CẦU RÚT TIỀN MỚI!\nSĐT: ${payload.new.phone}\nSố tiền: ${money(payload.new.amount)}`);
+          }
+        )
+        // Có thành viên mới đăng ký
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'users' },
+          () => {
+            loadAllData();
+          }
+        )
+        // Có sự thay đổi ở bảng tài khoản rút tiền
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'payouts' },
+          () => {
+            loadAllData();
+          }
+        )
+        .subscribe();
+    }
+
+    // Khởi động
+    loadAllData();
+    setupAdminRealtime();
+  </script>
+</body>
+</html>
+ 
