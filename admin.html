@@ -210,9 +210,7 @@
       <button class="active" onclick="switchSection('users')">👥 Quản Lý Thành Viên</button>
       <button onclick="switchSection('deposits')">📥 Duyệt Nạp Tiền</button>
       <button onclick="switchSection('withdrawals')">💳 Duyệt Rút Tiền</button>
-      <button onclick="switchSection('giftcode')">🎁 Tạo Giftcode</button>
-      <button onclick="switchSection('broadcast')">📢 Thông Báo Toàn Server</button>
-      <button onclick="switchSection('config')">⚙️ Cấu Hình Máy Chủ</button>
+      <button onclick="switchSection('giftcode')">🎁 Tạo Giftcode Supabase</button>
     </div>
 
     <!-- MỤC 1: QUẢN LÝ THÀNH VIÊN -->
@@ -232,7 +230,6 @@
               <th>Mã Mời Cá Nhân</th>
               <th>Cấp Bậc</th>
               <th>Số Dư VND</th>
-              <th>Đô La ($)</th>
               <th>Tài Khoản Rút Tiền</th>
               <th>Ngày Tạo</th>
               <th>Hành Động</th>
@@ -294,38 +291,29 @@
       </div>
     </section>
 
-    <!-- MỤC 4: TẠO GIFTCODE -->
+    <!-- MỤC 4: TẠO GIFTCODE TRÊN SUPABASE -->
     <section id="sec-giftcode" class="card" hidden>
       <div class="grid-2">
         <div>
           <h3 style="margin-top:0;">Tạo Giftcode Sự Kiện Mới</h3>
           <label>Mã Code (In hoa, không dấu)</label>
-          <input id="gcCode" placeholder="Ví dụ: TRIANVIP100K">
+          <input id="gcCode" placeholder="Ví dụ: TRIANVIP100K" style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">
 
-          <label>Loại phần thưởng</label>
-          <select id="gcType">
-            <option value="vnd">Tiền mặt VND</option>
-            <option value="coin">Đô la đào ($)</option>
-          </select>
+          <label>Giá trị phần thưởng (VND)</label>
+          <input id="gcAmount" type="number" placeholder="Ví dụ: 50000">
 
-          <label>Giá trị phần thưởng</label>
-          <input id="gcValue" type="number" placeholder="Ví dụ: 50000">
-
-          <label>Số lượt nhập tối đa</label>
-          <input id="gcLimit" type="number" placeholder="Ví dụ: 100">
-
-          <button class="btn primary" style="width:100%; margin-top:8px;" onclick="createGiftcode()">🚀 Kích Hoạt Giftcode</button>
+          <button class="btn primary" style="width:100%; margin-top:8px;" onclick="createGiftcodeInDb()">🚀 Kích Hoạt Giftcode Supabase</button>
         </div>
 
         <div>
-          <h3 style="margin-top:0;">Danh Sách Giftcode Đang Chạy</h3>
+          <h3 style="margin-top:0;">Danh Sách Giftcode Trên Server</h3>
           <div class="table-container">
             <table>
               <thead>
                 <tr>
                   <th>Mã Code</th>
-                  <th>Thưởng</th>
-                  <th>Lượt Dùng</th>
+                  <th>Thưởng VND</th>
+                  <th>Trạng Thái</th>
                   <th>Xóa</th>
                 </tr>
               </thead>
@@ -334,57 +322,6 @@
           </div>
         </div>
       </div>
-    </section>
-
-    <!-- MỤC 5: THÔNG BÁO TOÀN SERVER -->
-    <section id="sec-broadcast" class="card" hidden>
-      <h3 style="margin-top:0;">Phát Thông Báo Toàn Máy Chủ</h3>
-      <p class="muted">Thông báo này sẽ lập tức xuất hiện dưới dạng banner và popup khi bất kỳ thành viên nào mở ứng dụng.</p>
-
-      <label>Tiêu đề thông báo</label>
-      <input id="bcTitle" placeholder="Ví dụ: 🔔 BẢO TRÌ NÂNG CẤP MÁY CHỦ / SỰ KIỆN X2 COIN">
-
-      <label>Nội dung chi tiết</label>
-      <textarea id="bcContent" rows="5" placeholder="Nhập nội dung thông báo gửi đến toàn thể người chơi..."></textarea>
-
-      <label>Mức độ khẩn cấp</label>
-      <select id="bcType">
-        <option value="info">Thông tin bình thường (Xanh dương)</option>
-        <option value="alert">Khẩn cấp / Cảnh báo (Đỏ)</option>
-      </select>
-
-      <button class="btn primary" onclick="sendBroadcast()">📢 Phát Sóng Thông Báo Ngay</button>
-    </section>
-
-    <!-- MỤC 6: CẤU HÌNH HỆ THỐNG -->
-    <section id="sec-config" class="card" hidden>
-      <h3 style="margin-top:0;">Cấu Hình Hệ Thống & Cổng Thanh Toán</h3>
-      <div class="grid-2">
-        <div>
-          <label>Ngân Hàng Nhận Tiền</label>
-          <input id="cfgBank" value="MB Bank">
-
-          <label>Số Tài Khoản Nhận</label>
-          <input id="cfgAccount" value="0365355946">
-
-          <label>Tên Chủ Tài Khoản</label>
-          <input id="cfgName" value="VU HOANG HIEP">
-        </div>
-        <div>
-          <label>Phí rút tiền (%)</label>
-          <input id="cfgFee" type="number" value="5">
-
-          <label>Hoa hồng F1 (%)</label>
-          <input id="cfgF1" type="number" value="15">
-
-          <label>Hoa hồng F2 (%)</label>
-          <input id="cfgF2" type="number" value="3">
-
-          <label>Hoa hồng F3 (%)</label>
-          <input id="cfgF3" type="number" value="2">
-        </div>
-      </div>
-      <button class="btn primary" onclick="saveConfig()">💾 Lưu Cấu Hình Hệ Thống</button>
     </section>
   </div>
 
@@ -399,13 +336,6 @@
         <input id="edtBalance" type="number">
       </div>
       <div>
-        <label>Số Đô La Khai Thác ($)</label>
-        <input id="edtCoins" type="number">
-      </div>
-    </div>
-
-    <div class="grid-2">
-      <div>
         <label>Cấp Bậc VIP</label>
         <select id="edtVip">
           <option value="0">VIP 0 (Thành viên mới)</option>
@@ -418,10 +348,10 @@
           <option value="7">VIP 7 (2.000.000đ)</option>
         </select>
       </div>
-      <div>
-        <label>Đổi Mật Khẩu Đăng Nhập</label>
-        <input id="edtPass" placeholder="Để trống nếu không đổi">
-      </div>
+    </div>
+    <div class="field">
+      <label>Đổi Mật Khẩu Đăng Nhập</label>
+      <input id="edtPass" placeholder="Để trống nếu không đổi">
     </div>
 
     <div class="edit-section-title">🏦 Thông Tin Tài Khoản Rút Tiền</div>
@@ -464,12 +394,12 @@
     const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const money = n => new Intl.NumberFormat("vi-VN").format(n || 0) + "đ";
-    const fmt = n => new Intl.NumberFormat("vi-VN").format(n || 0);
 
     let users = [];
     let payoutsMap = new Map();
     let deposits = [];
     let withdrawals = [];
+    let giftcodes = [];
     let editingPhone = null;
 
     async function loadAllData() {
@@ -486,36 +416,34 @@
       const { data: withList } = await db.from("withdrawals").select("*").order("created_at", { ascending: false });
       withdrawals = withList || [];
 
+      const { data: giftList } = await db.from("giftcodes").select("*").order("created_at", { ascending: false });
+      giftcodes = giftList || [];
+
       updateServerStats();
       renderUsersTable();
       renderDepositTable();
       renderWithdrawTable();
       renderGiftcodeTable();
-      loadConfig();
     }
 
     async function seedDemoAccounts(alertUser = true) {
       const demoUsers = [
-        { phone: "0912345678", password: "password123", my_ref_code: "REF5678", vip: "3", balance: 1500000, coins: 450 },
-        { phone: "0987654321", password: "password123", my_ref_code: "REF4321", vip: "1", balance: 250000, coins: 120 },
-        { phone: "0365355946", password: "password123", my_ref_code: "REF5946", vip: "6", balance: 5800000, coins: 3400 },
-        { phone: "0778899112", password: "password123", my_ref_code: "REF9112", vip: "0", balance: 50000, coins: 15 },
-        { phone: "0833221100", password: "password123", my_ref_code: "REF1100", vip: "2", balance: 750000, coins: 280 }
+        { phone: "0912345678", password: "password123", my_ref_code: "123456789", vip: "3", balance: 1500000 },
+        { phone: "0987654321", password: "password123", my_ref_code: "987654321", vip: "1", balance: 250000 },
+        { phone: "0365355946", password: "password123", my_ref_code: "365355946", vip: "6", balance: 5800000 }
       ];
 
       const demoPayouts = [
         { phone: "0912345678", bank_name: "MB Bank", account_number: "0912345678", account_name: "NGUYEN VAN DEMO", locked: true },
         { phone: "0987654321", bank_name: "Vietcombank", account_number: "1029384756", account_name: "TRAN VAN TEST", locked: true },
-        { phone: "0365355946", bank_name: "MB Bank", account_number: "0365355946", account_name: "VU HOANG HIEP", locked: true },
-        { phone: "0778899112", bank_name: "Techcombank", account_number: "19034567890", account_name: "LE THI HOANG", locked: false },
-        { phone: "0833221100", bank_name: "ACB", account_number: "246813579", account_name: "HOANG MINH DUC", locked: true }
+        { phone: "0365355946", bank_name: "MB Bank", account_number: "0365355946", account_name: "VU HOANG HIEP", locked: true }
       ];
 
       for (const u of demoUsers) await db.from("users").upsert(u);
       for (const p of demoPayouts) await db.from("payouts").upsert(p);
 
       await loadAllData();
-      if (alertUser) alert("🎉 Đã tạo và đồng bộ 5 tài khoản demo trực tiếp lên cơ sở dữ liệu Supabase!");
+      if (alertUser) alert("🎉 Đã tạo và đồng bộ tài khoản demo lên Supabase!");
     }
 
     function switchSection(secId) {
@@ -547,13 +475,12 @@
       const filtered = users.filter(u => !search || u.phone.includes(search));
 
       if (!filtered.length) {
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--muted)">Không tìm thấy người chơi nào.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--muted)">Không tìm thấy người chơi nào.</td></tr>`;
         return;
       }
 
       filtered.forEach(u => {
         const uBalance = Number(u.balance) || 0;
-        const uCoins = Number(u.coins) || 0;
         const uVip = u.vip || "0";
         const payout = payoutsMap.get(u.phone) || {};
 
@@ -563,7 +490,6 @@
           <td><code style="color:var(--cyan)">${u.my_ref_code || '—'}</code></td>
           <td><span class="tag-vip">VIP ${uVip}</span></td>
           <td style="color:var(--green); font-weight:750;">${money(uBalance)}</td>
-          <td style="color:var(--cyan); font-weight:750;">${fmt(uCoins)} $</td>
           <td>
             ${payout.bank_name ? `
               <div style="font-size:12px;">
@@ -592,7 +518,6 @@
 
       document.getElementById("edtPhone").textContent = phone;
       document.getElementById("edtBalance").value = u.balance || 0;
-      document.getElementById("edtCoins").value = u.coins || 0;
       document.getElementById("edtVip").value = u.vip || "0";
       document.getElementById("edtPass").value = "";
 
@@ -608,7 +533,6 @@
       if (!editingPhone) return;
 
       const bal = Number(document.getElementById("edtBalance").value) || 0;
-      const cns = Number(document.getElementById("edtCoins").value) || 0;
       const vip = document.getElementById("edtVip").value;
       const newPass = document.getElementById("edtPass").value.trim();
 
@@ -617,7 +541,7 @@
       const accountName = document.getElementById("edtBankAccountName").value.trim();
       const locked = document.getElementById("edtBankLocked").value === "true";
 
-      let userUpdate = { balance: bal, coins: cns, vip: vip };
+      let userUpdate = { balance: bal, vip: vip };
       if (newPass) userUpdate.password = newPass;
 
       const { error: userErr } = await db.from("users").update(userUpdate).eq("phone", editingPhone);
@@ -685,31 +609,23 @@
       });
     }
 
-    // ==============================================================
-    // DUYỆT NẠP TIỀN + TỰ ĐỘNG CHIA HOA HỒNG 3 TẦNG (F1: 15%, F2: 3%, F3: 2%)
-    // ==============================================================
     async function confirmDeposit(depId, phone, amount) {
-      if (!confirm(`Xác nhận duyệt nạp ${money(amount)} cho người chơi ${phone}? Hệ thống sẽ tự động chia hoa hồng 3 tầng cho cấp trên.`)) return;
+      if (!confirm(`Xác nhận duyệt nạp ${money(amount)} cho người chơi ${phone}? Hệ thống sẽ tự động chia hoa hồng 3 tầng.`)) return;
 
-      // 1. Đổi trạng thái đơn nạp thành confirmed
       await db.from("deposits").update({ status: 'confirmed' }).eq("id", depId);
 
-      // 2. Cộng tiền cho chính người nạp
       const { data: user } = await db.from("users").select("*").eq("phone", phone).single();
       const currentBalance = Number(user?.balance) || 0;
       await db.from("users").update({ balance: currentBalance + Number(amount) }).eq("phone", phone);
 
-      // 3. TỰ ĐỘNG TRUY VẾT HOA HỒNG 3 TẦNG:
       try {
         let f1Code = user?.invite_code;
         if (f1Code) {
-          // CẤP F1 (Nhận 15%)
           const { data: f1User } = await db.from("users").select("*").eq("my_ref_code", f1Code).maybeSingle();
           if (f1User) {
             const f1Commission = Math.round(Number(amount) * 0.15);
             await db.from("users").update({ balance: Number(f1User.balance || 0) + f1Commission }).eq("phone", f1User.phone);
 
-            // CẤP F2 (Nhận 3%)
             let f2Code = f1User.invite_code;
             if (f2Code) {
               const { data: f2User } = await db.from("users").select("*").eq("my_ref_code", f2Code).maybeSingle();
@@ -717,7 +633,6 @@
                 const f2Commission = Math.round(Number(amount) * 0.03);
                 await db.from("users").update({ balance: Number(f2User.balance || 0) + f2Commission }).eq("phone", f2User.phone);
 
-                // CẤP F3 (Nhận 2%)
                 let f3Code = f2User.invite_code;
                 if (f3Code) {
                   const { data: f3User } = await db.from("users").select("*").eq("my_ref_code", f3Code).maybeSingle();
@@ -735,7 +650,7 @@
       }
 
       await loadAllData();
-      alert(`Đã duyệt nạp ${money(amount)} cho ${phone} và tự động chuyển hoa hồng F1 (15%), F2 (3%), F3 (2%) cho các cấp trên thành công!`);
+      alert(`Đã duyệt nạp ${money(amount)} cho ${phone} và chia hoa hồng 3 tầng thành công!`);
     }
 
     async function cancelDeposit(depId) {
@@ -795,119 +710,66 @@
       alert(`Đã ${decision === 'completed' ? 'DUYỆT THÀNH CÔNG' : 'TỪ CHỐI (VÀ HOÀN TIỀN)'} đơn rút tiền.`);
     }
 
-    function createGiftcode() {
-      const code = document.getElementById("gcCode").value.trim().toUpperCase();
-      const type = document.getElementById("gcType").value;
-      const val = Number(document.getElementById("gcValue").value);
-      const limit = Number(document.getElementById("gcLimit").value) || 1;
-
-      if (!code || !val) {
-        alert("Vui lòng nhập mã code và giá trị thưởng.");
-        return;
-      }
-
-      let giftcodes = JSON.parse(localStorage.getItem("cm_giftcodes") || "[]");
-      if (giftcodes.some(g => g.code === code)) {
-        alert("Mã Giftcode này đã tồn tại!");
-        return;
-      }
-
-      giftcodes.push({ code, type, value: val, limit, used: 0, createdAt: new Date().toISOString() });
-      localStorage.setItem("cm_giftcodes", JSON.stringify(giftcodes));
-
-      document.getElementById("gcCode").value = "";
-      document.getElementById("gcValue").value = "";
-      renderGiftcodeTable();
-      alert(`Đã phát hành Giftcode ${code} thành công!`);
-    }
-
+    // QUẢN LÝ GIFTCODE TRÊN SUPABASE
     function renderGiftcodeTable() {
       const tbody = document.getElementById("giftcodeTableBody");
       tbody.replaceChildren();
 
-      let giftcodes = JSON.parse(localStorage.getItem("cm_giftcodes") || "[]");
       if (!giftcodes.length) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--muted)">Chưa có giftcode nào.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--muted)">Chưa có giftcode nào trên server.</td></tr>`;
         return;
       }
 
-      giftcodes.forEach((g, idx) => {
+      giftcodes.forEach((g) => {
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td><strong style="color:var(--cyan)">${g.code}</strong></td>
-          <td style="color:var(--green)">${g.type === 'vnd' ? money(g.value) : fmt(g.value) + ' $'}</td>
-          <td>${g.used}/${g.limit}</td>
-          <td><button class="btn danger" onclick="deleteGiftcode(${idx})">Xóa</button></td>
+          <td style="color:var(--green)">${money(g.amount)}</td>
+          <td>
+            <span class="btn ${g.used ? 'secondary' : 'success'}" style="padding:3px 8px; font-size:11px;">
+              ${g.used ? 'Đã sử dụng' : 'Chưa sử dụng'}
+            </span>
+          </td>
+          <td><button class="btn danger" onclick="deleteGiftcode('${g.code}')">Xóa</button></td>
         `;
         tbody.append(tr);
       });
     }
 
-    function deleteGiftcode(idx) {
-      let giftcodes = JSON.parse(localStorage.getItem("cm_giftcodes") || "[]");
-      giftcodes.splice(idx, 1);
-      localStorage.setItem("cm_giftcodes", JSON.stringify(giftcodes));
-      renderGiftcodeTable();
-    }
+    async function createGiftcodeInDb() {
+      const code = document.getElementById("gcCode").value.trim().toUpperCase();
+      const amount = Number(document.getElementById("gcAmount").value) || 0;
 
-    function sendBroadcast() {
-      const title = document.getElementById("bcTitle").value.trim();
-      const content = document.getElementById("bcContent").value.trim();
-      const type = document.getElementById("bcType").value;
-
-      if (!title || !content) {
-        alert("Vui lòng nhập tiêu đề và nội dung thông báo.");
+      if (!code || amount <= 0) {
+        alert("Vui lòng nhập mã code và giá trị thưởng hợp lệ.");
         return;
       }
 
-      const broadcastData = { title, content, type, time: new Date().toISOString() };
-      localStorage.setItem("cm_broadcast", JSON.stringify(broadcastData));
-      alert("📢 Đã phát thông báo thành công đến toàn bộ thành viên máy chủ!");
-    }
-
-    function loadConfig() {
-      const savedConfig = JSON.parse(localStorage.getItem("cm_system_config") || "null");
-      if (savedConfig) {
-        document.getElementById("cfgBank").value = savedConfig.bankName || "MB Bank";
-        document.getElementById("cfgAccount").value = savedConfig.accountNumber || "0365355946";
-        document.getElementById("cfgName").value = savedConfig.accountName || "VU HOANG HIEP";
-        document.getElementById("cfgFee").value = savedConfig.withdrawFee || 5;
-        document.getElementById("cfgF1").value = savedConfig.f1 || 15;
-        document.getElementById("cfgF2").value = savedConfig.f2 || 3;
-        document.getElementById("cfgF3").value = savedConfig.f3 || 2;
+      const { error } = await db.from("giftcodes").insert({ code, amount, used: false });
+      if (error) {
+        alert("Lỗi khi tạo giftcode (Có thể mã đã tồn tại): " + error.message);
+        return;
       }
+
+      document.getElementById("gcCode").value = "";
+      document.getElementById("gcAmount").value = "";
+      await loadAllData();
+      alert(`Đã phát hành Giftcode ${code} (${money(amount)}) lên Supabase thành công!`);
     }
 
-    function saveConfig() {
-      const config = {
-        bankName: document.getElementById("cfgBank").value,
-        accountNumber: document.getElementById("cfgAccount").value,
-        accountName: document.getElementById("cfgName").value,
-        withdrawFee: document.getElementById("cfgFee").value,
-        f1: document.getElementById("cfgF1").value,
-        f2: document.getElementById("cfgF2").value,
-        f3: document.getElementById("cfgF3").value
-      };
-      localStorage.setItem("cm_system_config", JSON.stringify(config));
-      alert("Đã lưu cấu hình hệ thống máy chủ!");
+    async function deleteGiftcode(code) {
+      if (!confirm(`Xóa mã giftcode [${code}] khỏi server?`)) return;
+      await db.from("giftcodes").delete().eq("code", code);
+      await loadAllData();
     }
 
     function setupAdminRealtime() {
       db.channel('admin_live_channel')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'deposits' }, (payload) => {
-          loadAllData();
-          alert(`🔔 [REALTIME] CÓ ĐƠN NẠP TIỀN MỚI!\nSĐT: ${payload.new.phone}\nSố tiền: ${money(payload.new.amount)}`);
-        })
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'withdrawals' }, (payload) => {
-          loadAllData();
-          alert(`⚠️ [REALTIME] CÓ YÊU CẦU RÚT TIỀN MỚI!\nSĐT: ${payload.new.phone}\nSố tiền: ${money(payload.new.amount)}`);
-        })
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'users' }, () => {
-          loadAllData();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'payouts' }, () => {
-          loadAllData();
-        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'deposits' }, () => loadAllData())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawals' }, () => loadAllData())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => loadAllData())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'payouts' }, () => loadAllData())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'giftcodes' }, () => loadAllData())
         .subscribe();
     }
 
