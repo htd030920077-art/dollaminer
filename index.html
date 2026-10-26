@@ -1261,6 +1261,7 @@
       });
     }
 
+    // TÍNH NĂNG NHẬP GIFTCODE (HỖ TRỢ CẢ MÃ CỐ ĐỊNH VÀ MÃ NGẪU NHIÊN CHUNG)
     async function redeemGiftcode() {
       if (!requireUser()) return;
       const code = $("giftcodeInput").value.trim().toUpperCase();
@@ -1274,16 +1275,47 @@
         if (gErr || !gift) {
           throw new Error("Mã Giftcode không tồn tại hoặc đã hết hạn!");
         }
-        if (gift.used) {
-          throw new Error("Mã Giftcode này đã được sử dụng rồi!");
+
+        let rewardAmount = 0;
+
+        if (gift.is_random) {
+          const { data: claimed } = await db.from("giftcode_claims").select("id").eq("code", code).eq("phone", me.phone).maybeSingle();
+          if (claimed) {
+            throw new Error("Bạn đã sử dụng mã giftcode này rồi, mỗi tài khoản chỉ được nhận 1 lần!");
+          }
+
+          if ((gift.current_uses || 0) >= gift.max_uses) {
+            throw new Error("Mã Giftcode này đã hết lượt sử dụng!");
+          }
+
+          const min = Number(gift.min_amount) || 0;
+          const max = Number(gift.max_amount) || 0;
+          const range = max - min;
+          const steps = Math.floor(range / 1000);
+          if (steps > 0) {
+            const randomStep = Math.floor(Math.random() * (steps + 1));
+            rewardAmount = min + randomStep * 1000;
+          } else {
+            rewardAmount = Math.floor(Math.random() * (max - min + 1)) + min;
+          }
+
+          await db.from("giftcode_claims").insert({ code: code, phone: me.phone, amount: rewardAmount });
+
+          const newUses = (gift.current_uses || 0) + 1;
+          await db.from("giftcodes").update({ 
+            current_uses: newUses, 
+            used: newUses >= gift.max_uses 
+          }).eq("code", code);
+
+        } else {
+          if (gift.used) {
+            throw new Error("Mã Giftcode này đã được sử dụng rồi!");
+          }
+          rewardAmount = Number(gift.amount) || 0;
+          await db.from("giftcodes").update({ used: true }).eq("code", code);
         }
 
-        const { error: uErr } = await db.from("giftcodes").update({ used: true }).eq("code", code);
-        if (uErr) throw new Error("Không thể sử dụng giftcode: " + uErr.message);
-
-        const rewardAmount = Number(gift.amount) || 0;
         const newBalance = userBalance + rewardAmount;
-
         const { error: bErr } = await db.from("users").update({ balance: newBalance }).eq("phone", me.phone);
         if (bErr) throw new Error("Lỗi cộng tiền thưởng: " + bErr.message);
 
@@ -1688,7 +1720,6 @@
       }
 
       run("withdraw", async () => {
-        // KIỂM TRA KHUNG GIỜ RÚT TIỀN: TỪ 09:00 SÁNG ĐẾN 21:00 TỐI (9H ĐÊM)
         const currentHour = new Date().getHours();
         if (currentHour < 9 || currentHour >= 21) {
           throw new Error("⏳ Cổng rút tiền tạm thời đóng cửa!\n\nThời gian cho phép rút tiền là từ 09:00 sáng đến 21:00 tối hàng ngày. Vui lòng quay lại trong khung giờ quy định.");
@@ -1730,7 +1761,6 @@
 
         banner("Đang xử lý lệnh rút tiền...");
 
-        // TRỪ TIỀN KHỎI VÍ NGAY LẬP TỨC
         const newBal = currentBal - amount;
         await db.from("users").update({ balance: newBal }).eq("phone", me.phone);
         userBalance = newBal;
