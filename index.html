@@ -515,7 +515,7 @@
         </div>
       </div>
 
-      <!-- FORM RÚT TIỀN (TRỪ TIỀN NGAY KHI GỬI YÊU CẦU) -->
+      <!-- FORM RÚT TIỀN (CHECK KHUNG GIỜ 9H SÁNG - 9H TỐI + TRỪ TIỀN NGAY) -->
       <div id="withdrawForm" class="card" hidden>
         <img class="card-banner-img" src="https://images.unsplash.com/photo-1563986768609-322da13575f3?w=800&auto=format&fit=crop&q=80" alt="Rút tiền an toàn">
         
@@ -526,7 +526,7 @@
         <div class="row between">
           <div>
             <h3 style="margin:0;">Rút tiền về ngân hàng</h3>
-            <small class="muted">Số dư khả dụng: <strong id="withdrawAvailBalance" style="color:var(--green);">0đ</strong> · Phí rút 5%</small>
+            <small class="muted">Số dư khả dụng: <strong id="withdrawAvailBalance" style="color:var(--green);">0đ</strong> · Phí rút 5% · <span style="color:var(--gold);">Giờ rút: 09:00 - 21:00</span></small>
           </div>
           <span id="bankLockStatus" class="pill" hidden>🔒 Đã khóa bảo mật</span>
         </div>
@@ -1261,7 +1261,6 @@
       });
     }
 
-    // TÍNH NĂNG NHẬP GIFTCODE LIÊN KẾT VỚI ADMIN (SUPABASE)
     async function redeemGiftcode() {
       if (!requireUser()) return;
       const code = $("giftcodeInput").value.trim().toUpperCase();
@@ -1673,7 +1672,9 @@
       else disablePayout();
     }
 
-    // RÚT TIỀN: TRỪ TIỀN KHỎI VÍ NGAY LẬP TỨC
+    // =========================================================
+    // XỬ LÝ RÚT TIỀN: CHECK KHUNG GIỜ 9H SÁNG - 9H TỐI + TRỪ TIỀN NGAY
+    // =========================================================
     function submitWithdrawal() {
       if (!requireUser()) return;
 
@@ -1687,6 +1688,12 @@
       }
 
       run("withdraw", async () => {
+        // KIỂM TRA KHUNG GIỜ RÚT TIỀN: TỪ 09:00 SÁNG ĐẾN 21:00 TỐI (9H ĐÊM)
+        const currentHour = new Date().getHours();
+        if (currentHour < 9 || currentHour >= 21) {
+          throw new Error("⏳ Cổng rút tiền tạm thời đóng cửa!\n\nThời gian cho phép rút tiền là từ 09:00 sáng đến 21:00 tối hàng ngày. Vui lòng quay lại trong khung giờ quy định.");
+        }
+
         const bankName = $("withdrawBank").value.trim();
         const accountNumber = $("withdrawAccountNumber").value.trim();
         const accountName = $("withdrawAccountName").value.trim().toUpperCase();
@@ -2040,7 +2047,7 @@
         "Chỉ cần bấm điểm danh 1 lần mỗi ngày để nhận ngay lập tức 15% giá trị gói đầu tư cộng trực tiếp vào Số dư VND.\n\n" +
         "⚡ NẠP TỰ ĐỘNG SEPAY - RÚT THẦN TỐC:\n" +
         "• Hệ thống nạp tự động SePAY 24/7 qua MB Bank (0365355946 - VU HOANG HIEP).\n" +
-        "• Trừ tiền ngay khi gửi lệnh và rút tiền siêu tốc về ngân hàng.\n\n" +
+        "• Khung giờ rút tiền: 09:00 - 21:00 hàng ngày (Trừ tiền ngay khi gửi lệnh).\n\n" +
         "🌟 ĐỐI TÁC THỊNH VƯỢNG - HOA HỒNG 3 TẦNG 20%:\n" +
         "Hoa hồng tự động: F1 (15%), F2 (3%), F3 (2%) cộng thẳng vào ví ngay khi cấp dưới nạp tiền!"
       );
@@ -2072,7 +2079,6 @@
 
         checkAndApplyReferralLink();
 
-        // HIỂN THỊ POPUP TELEGRAM KHI VỪA VÀO TRANG (HIỆN 1 LẦN DUY NHẤT MỖI PHIÊN)
         setTimeout(() => {
           if (!sessionStorage.getItem("shown_tele_popup")) {
             $("telegramPopup").showModal();
